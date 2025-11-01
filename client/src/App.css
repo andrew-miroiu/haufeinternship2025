@@ -1,0 +1,95 @@
+#root {
+  width: 100%;
+  min-height: 100vh;
+}
+
+.app {
+  min-height: 100vh;
+  background: #0D0D0D;
+}
+
+.app-loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  font-size: 18px;
+  color: #737373;
+}
+
+.app-header {
+  background: #1A1A1A;
+  padding: 20px 40px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #262626;
+}
+
+.app-header h1 {
+  margin: 0;
+  color: #f5f5f5;
+  font-size: 24px;
+}
+
+.app-nav {
+  display: flex;
+  gap: 10px;
+}
+
+.nav-button {
+  padding: 8px 20px;
+  background: transparent;
+  color: #737373;
+  border: 1px solid #333;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.nav-button:hover {
+  color: #f5f5f5;
+  border-color: #4a9eff;
+  background: rgba(74, 158, 255, 0.1);
+}
+
+.nav-button.active {
+  color: #4a9eff;
+  border-color: #4a9eff;
+  background: rgba(74, 158, 255, 0.15);
+}
+
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.user-email {
+  color: #737373;
+  font-size: 14px;
+}
+
+.btn-logout {
+  padding: 8px 16px;
+  background: #d97706;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+
+.btn-logout:hover {
+  background: #b45309;
+}
+
+.app-main {
+  padding: 20px;
+  background: #0D0D0D;
+}

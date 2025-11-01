@@ -1,0 +1,270 @@
+#!/bin/bash
+
+echo "🧠 Running AI code review before commit..."
+
+exec < /dev/tty
+
+# === Skip first commit
+
+if ! git rev-parse --verify HEAD >/dev/null 2>&1; then
+
+  echo "⚙️ First commit detected — skipping AI review."
+
+  exit 0
+
+fi
+
+# === Check if backend API is running (port 3001)
+
+if ! curl --silent --fail http://localhost:3001 >/dev/null 2>&1; then
+
+  echo "⚠️ AI review service not running — skipping review."
+
+  exit 0
+
+fi
+
+# === Choose review type
+
+echo ""
+
+echo "📋 Select review mode:"
+
+echo "1️⃣  Incremental (new/modified lines only)"
+
+echo "2️⃣  Full file review"
+
+echo "3️⃣  Deleted code review"
+
+read -p "Enter your choice (1/2/3): " mode
+
+case "$mode" in
+
+  1)
+
+    echo "🔍 Incremental review selected (default)."
+
+    FILES=$(git diff --cached --name-only --diff-filter=AM)
+
+    DIFF=$(git diff --cached --diff-filter=AM)
+
+    ;;
+
+  2)
+
+    echo "📄 Full file review selected."
+
+    FILES=$(git diff --cached --name-only --diff-filter=AM)
+
+    DIFF=""
+
+    for FILE in $FILES; do
+
+      echo "⬇️ Reading full file: $FILE"
+
+      CONTENT=$(cat "$FILE")
+
+      DIFF+="\n\n# FILE: $FILE\n$CONTENT"
+
+    done
+
+    ;;
+
+  3)
+
+    echo "🗑 Deleted code review selected."
+
+    FILES=$(git diff --cached --name-only --diff-filter=D)
+
+    DIFF=$(git diff --cached --diff-filter=D)
+
+    ;;
+
+  *)
+
+    echo "⚙️ Invalid choice. Defaulting to incremental review."
+
+    FILES=$(git diff --cached --name-only --diff-filter=AM)
+
+    DIFF=$(git diff --cached --diff-filter=AM)
+
+    ;;
+
+esac
+
+if [ -z "$FILES" ]; then
+
+  echo "⚙️ No files staged for commit."
+
+  exit 0
+
+fi
+
+# === Send code diff to AI review backend
+
+REVIEW=$(echo "$DIFF" | jq -Rs '{ code: . }' | \
+
+  curl -s -X POST http://localhost:3001/api/review/commit \
+
+  -H "Content-Type: application/json" \
+
+  -d @-)
+
+STATUS=$(echo "$REVIEW" | jq -r '.status')
+
+SUMMARY=$(echo "$REVIEW" | jq -r '.summary')
+
+# === If AI approves
+
+if [ "$STATUS" = "ok" ]; then
+
+  echo "✅ AI review passed. Commit allowed."
+
+  exit 0
+
+fi
+
+# === Otherwise, block and show summary
+
+echo "🚫 Commit blocked: $SUMMARY"
+
+# === Effort estimation before prompt
+
+EFFORT=$(jq -n --arg summary "$SUMMARY" '{ summary: $summary }' | \
+
+  curl -s -X POST http://localhost:3001/api/review/effort \
+
+  -H "Content-Type: application/json" \
+
+  -d @-)
+
+ESTIMATE=$(echo "$EFFORT" | jq -r '.estimate')
+
+echo "🕒 Estimated effort: $ESTIMATE"
+
+# === Main decision loop
+
+while true; do
+
+  read -p "💬 Respond (r), override (o), auto-fix (f), or cancel (c)? " choice
+
+  case "$choice" in
+
+    f)
+
+      echo "🛠 Generating AI auto-fix for staged files..."
+
+      for FILE in $FILES; do
+
+        echo "🔧 Fixing file: $FILE"
+
+        FILE_CONTENT=$(cat "$FILE")
+
+        FIX=$(jq -n --arg code "$FILE_CONTENT" '{ code: $code }' | \
+
+          curl -s -X POST http://localhost:3001/api/review/fix \
+
+          -H "Content-Type: application/json" \
+
+          -d @-)
+
+        FIXED_CODE=$(echo "$FIX" | jq -r '.fixed_code')
+
+        if [ -n "$FIXED_CODE" ] && [ "$FIXED_CODE" != "null" ]; then
+
+          echo "$FIXED_CODE" > "$FILE"
+
+          git add "$FILE"
+
+          echo "Applied fix directly to $FILE"
+
+        else
+
+          echo "⚠️ No fix returned for $FILE"
+
+        fi
+
+      done
+
+      echo "All fixes applied. Commit allowed."
+
+      exit 0
+
+      ;;
+
+    r)
+
+      read -p "Your reply: " reply
+
+      DISCUSSION=$(jq -n --arg issue "$SUMMARY" --arg dev "$reply" \
+
+        '{ issue: $issue, developer_response: $dev }' | \
+
+        curl -s -X POST http://localhost:3001/api/review/discussion \
+
+        -H "Content-Type: application/json" \
+
+        -d @-)
+
+      D_STATUS=$(echo "$DISCUSSION" | jq -r '.status')
+
+      D_SUMMARY=$(echo "$DISCUSSION" | jq -r '.summary')
+
+      echo "🤖 AI: $D_SUMMARY"
+
+      if [ "$D_STATUS" = "ok" ]; then
+
+        echo "✅ AI accepted your explanation. Commit allowed."
+
+        exit 0
+
+      else
+
+        echo "🚫 Still rejected by AI reviewer."
+
+        read -p "😐 Override and commit anyway? (y/n) " override
+
+        if [ "$override" = "y" ]; then
+
+          echo "⚠️ Manual override — forcing commit."
+
+          exit 0
+
+        else
+
+          echo "❌ Commit cancelled."
+
+          exit 1
+
+        fi
+
+      fi
+
+      ;;
+
+    o)
+
+      echo "⚠️ Manual override — forcing commit."
+
+      exit 0
+
+      ;;
+
+    c)
+
+      echo "❌ Commit cancelled."
+
+      exit 1
+
+      ;;
+
+    *)
+
+      echo "❌ Invalid choice. Type r, o, f, or c."
+
+      ;;
+
+  esac
+
+done
+
