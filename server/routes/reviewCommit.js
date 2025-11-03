@@ -4,6 +4,10 @@ const router = express.Router();
 
 // === CODE REVIEW ROUTE ===
 router.post("/commit", async (req, res) => {
+  if (!req.body) {
+    return res.status(400).json({ status: "fail", summary: "Request body is missing." });
+  }
+  
   const { code } = req.body;
 
   if (!code || code.trim().length === 0) {
@@ -105,7 +109,18 @@ ${code}
 
 // === DISCUSSION / REPLY ROUTE ===
 router.post("/discussion", async (req, res) => {
+  if (!req.body) {
+    return res.status(400).json({ status: "fail", summary: "Request body is missing." });
+  }
+  
   const { issue, developer_response } = req.body;
+
+  if (!issue || !developer_response) {
+    return res.status(400).json({ 
+      status: "fail", 
+      summary: "Both 'issue' and 'developer_response' are required." 
+    });
+  }
 
   // ====================================================================
   // PROMPT PURPOSE: Developer-AI Discussion Resolution
@@ -172,6 +187,10 @@ Reevaluate the original issue considering the developer's explanation.
 
 // === AUTO-FIX ROUTE ===
 router.post("/fix", async (req, res) => {
+  if (!req.body) {
+    return res.status(400).json({ status: "fail", message: "Request body is missing." });
+  }
+  
   const { code } = req.body;
 
   if (!code) {
@@ -249,6 +268,10 @@ ${code}
 
 // === EFFORT ESTIMATION ROUTE ===
 router.post("/effort", async (req, res) => {
+  if (!req.body) {
+    return res.status(400).json({ status: "fail", message: "Request body is missing." });
+  }
+  
   const { summary } = req.body;
 
   if (!summary) {
